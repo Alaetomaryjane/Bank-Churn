@@ -2,8 +2,6 @@ import streamlit as st
 import pickle
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
-from PIL import Image
-import requests
 
 # Set page title and icon
 st.set_page_config(page_title="Bank Churn Prediction", page_icon="🏦", layout="wide")
@@ -15,24 +13,15 @@ def load_artifacts():
         artifacts = {}
         with open('model.pkl', 'rb') as f:
             artifacts['model'] = pickle.load(f)
-        
-        # Try loading scaler if exists
-        # try:
-        #     with open('scaler.pkl', 'rb') as f:
-        #         artifacts['scaler'] = pickle.load(f)
-        # except FileNotFoundError:
-        #     st.warning("No scaler found. Proceeding without scaling.")
-        #     artifacts['scaler'] = None
-            
-        # Create fresh encoders if saved ones don't exist
+
         if 'gender_encoder' not in artifacts:
             artifacts['gender_encoder'] = LabelEncoder()
-            artifacts['gender_encoder'].fit(['Female', 'Male'])  # Expected categories
-            
+            artifacts['gender_encoder'].fit(['Female', 'Male'])
+
         if 'geography_encoder' not in artifacts:
             artifacts['geography_encoder'] = LabelEncoder()
-            artifacts['geography_encoder'].fit(['France', 'Germany', 'Spain'])  # Expected categories
-            
+            artifacts['geography_encoder'].fit(['France', 'Germany', 'Spain'])
+
         return artifacts
     except Exception as e:
         st.error(f"Error loading artifacts: {str(e)}")
@@ -62,7 +51,6 @@ except Exception as e:
 st.sidebar.header("Customer Parameters")
 
 def user_input_features():
-    # Numerical inputs
     CreditScore = st.sidebar.slider('Credit Score', 300, 850, 650)
     Age = st.sidebar.slider('Age', 18, 100, 40)
     Tenure = st.sidebar.slider('Tenure (years with bank)', 0, 10, 5)
@@ -71,17 +59,10 @@ def user_input_features():
     HasCrCard = st.sidebar.checkbox('Has Credit Card', value=True)
     IsActiveMember = st.sidebar.checkbox('Is Active Member', value=True)
     EstimatedSalary = st.sidebar.slider('Estimated Salary', 0.0, 200000.0, 100000.0)
-    
-    # Categorical inputs
-    Geography = st.sidebar.selectbox(
-        'Country',
-        ['France', 'Germany', 'Spain']
-    )
-    Gender = st.sidebar.selectbox(
-        'Gender',
-        ['Female', 'Male']
-    )
-    
+
+    Geography = st.sidebar.selectbox('Country', ['France', 'Germany', 'Spain'])
+    Gender = st.sidebar.selectbox('Gender', ['Female', 'Male'])
+
     data = {
         'CreditScore': CreditScore,
         'Geography': Geography,
@@ -94,7 +75,7 @@ def user_input_features():
         'IsActiveMember': int(IsActiveMember),
         'EstimatedSalary': EstimatedSalary
     }
-    
+
     return pd.DataFrame(data, index=[0])
 
 input_df = user_input_features()
@@ -107,33 +88,24 @@ st.write(input_df)
 def preprocess_input(input_df, artifacts):
     try:
         processed_df = input_df.copy()
-        
-        # Encode categorical variables
+
         if 'gender_encoder' in artifacts:
             processed_df['Gender'] = artifacts['gender_encoder'].transform(
-                processed_df['Gender'].astype(str)  # Ensure string type
+                processed_df['Gender'].astype(str)
             )
-        
+
         if 'geography_encoder' in artifacts:
             processed_df['Geography'] = artifacts['geography_encoder'].transform(
-                processed_df['Geography'].astype(str)  # Ensure string type
+                processed_df['Geography'].astype(str)
             )
-        
-        # Scale numerical features if scaler exists
-        # if artifacts['scaler'] is not None:
-        #     numerical_features = ['CreditScore', 'Age', 'Balance', 'EstimatedSalary']
-        #     processed_df[numerical_features] = artifacts['scaler'].transform(
-        #         processed_df[numerical_features]
-        #     )
-        
-        # Ensure column order matches training
+
         column_order = [
             'CreditScore', 'Geography', 'Gender', 'Age', 'Tenure', 
             'Balance', 'NumOfProducts', 'HasCrCard', 'IsActiveMember', 
             'EstimatedSalary'
         ]
         return processed_df[column_order]
-    
+
     except Exception as e:
         st.error(f"Preprocessing error: {str(e)}")
         st.write("Debug - Input DataFrame:")
@@ -146,25 +118,21 @@ processed_df = preprocess_input(input_df, artifacts)
 
 if processed_df is not None:
     try:
-        # Make predictions
         prediction = artifacts['model'].predict(processed_df)
-        
-        # Handle models with and without predict_proba
+
         try:
             prediction_proba = artifacts['model'].predict_proba(processed_df)
             confidence = prediction_proba[0][1] if prediction[0] == 1 else prediction_proba[0][0]
         except AttributeError:
             confidence = "Not available"
-        
-        # Display results
+
         st.subheader('Prediction Result')
         churn_status = "Will Churn" if prediction[0] == 1 else "Will Not Churn"
-        
+
         st.success(f"Prediction: {churn_status}")
         if confidence != "Not available":
             st.info(f"Confidence: {confidence:.1%}")
-        
-        # Show feature importance if available
+
         try:
             if hasattr(artifacts['model'], 'feature_importances_'):
                 st.subheader("Feature Importance")
@@ -175,7 +143,7 @@ if processed_df is not None:
                 st.bar_chart(importance_df.set_index('Feature'))
         except Exception:
             pass
-        
+
     except Exception as e:
         st.error(f"Prediction error: {str(e)}")
         st.write("Debug - Processed DataFrame:")
